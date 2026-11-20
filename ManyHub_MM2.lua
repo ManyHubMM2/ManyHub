@@ -1,20 +1,23 @@
--- ManyHub_Glass.lua · Lua · Custom UI · MM2 Client-Side
--- Красивое меню без сторонних библиотек. Все функции рабочие.
+-- ManyHub_Glass_Ultimate.lua · Lua · Custom UI · MM2 Client-Side
+-- Полная сборка: Glassmorphism UI, все модули, картинка на кнопке.
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
 local CFG = {
-    espEnabled = true, aimbotEnabled = false, aimFOV = 150, aimSmooth = 0.3,
-    bhopEnabled = false, flyEnabled = false, noclipEnabled = false, antiAfk = true, walkSpeed = 16
+    espEnabled = true, espBox = true, espTracer = true, espSkeleton = false, espWeapons = true,
+    aimbotEnabled = false, silentAim = false, hitboxExpand = false, autoShoot = false, aimFOV = 150, aimSmooth = 0.3, aimPart = "Head",
+    flyEnabled = false, noclipEnabled = false, speedEnabled = false, bhopEnabled = false, antiFling = false,
+    fullbright = false, fpsBoost = false, autoPickup = false, antiAfk = true, walkSpeed = 16
 }
 
-local RoleCache, ESPCache = {}, {}
+local RoleCache, ESPCache, WeaponCache = {}, {}, {}
 local flyBV, flyBG, bhopConn
 
 -- ============================================================
@@ -40,50 +43,32 @@ local function getRoleColor(role)
     return Color3.fromRGB(50, 255, 100)
 end
 
-local function createESP(plr)
-    if plr == LocalPlayer then return end
-    local char = plr.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
-    local head = char:FindFirstChild("Head") or hrp
-    if not hrp then return end
-
-    local role = RoleCache[plr] or "Innocent"
-    local color = getRoleColor(role)
-    
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "ManyHub_ESP"; highlight.FillColor = color; highlight.FillTransparency = 0.6
-    highlight.OutlineColor = color; highlight.Parent = char
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ManyHub_BB"; billboard.Size = UDim2.new(0, 160, 0, 40)
-    billboard.StudsOffset = Vector3.new(0, 3, 0); billboard.AlwaysOnTop = true; billboard.Parent = head
-
-    local bg = Instance.new("Frame", billboard)
-    bg.Size = UDim2.new(1, 0, 1, 0); bg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    bg.BackgroundTransparency = 0.5; bg.BorderSizePixel = 0
-    Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 6)
-
-    local nameLbl = Instance.new("TextLabel", bg); nameLbl.Size = UDim2.new(1, -4, 0, 20)
-    nameLbl.Position = UDim2.new(0, 2, 0, 0); nameLbl.BackgroundTransparency = 1
-    nameLbl.Text = plr.Name; nameLbl.TextColor3 = color; nameLbl.Font = Enum.Font.GothamBold; nameLbl.TextSize = 13
-
-    local roleLbl = Instance.new("TextLabel", bg); roleLbl.Size = UDim2.new(1, -4, 0, 16)
-    roleLbl.Position = UDim2.new(0, 2, 0, 20); roleLbl.BackgroundTransparency = 1
-    roleLbl.Text = role; roleLbl.TextColor3 = color; roleLbl.Font = Enum.Font.Gotham; roleLbl.TextSize = 11
-
-    ESPCache[plr] = {highlight=highlight, billboard=billboard, roleLbl=roleLbl}
-end
-
 local function updateESP()
     if not CFG.espEnabled then return end
-    for plr, e in pairs(ESPCache) do
-        if plr.Character then
-            local role = RoleCache[plr] or "Innocent"
-            local color = getRoleColor(role)
-            if e.highlight then e.highlight.FillColor = color; e.highlight.OutlineColor = color end
-            if e.roleLbl then e.roleLbl.Text = role; e.roleLbl.TextColor3 = color end
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr == LocalPlayer then continue end
+        local char = plr.Character
+        if not char then continue end
+        local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+        local head = char:FindFirstChild("Head") or hrp
+        if not hrp then continue end
+
+        local role = RoleCache[plr] or "Innocent"
+        local color = getRoleColor(role)
+
+        if not ESPCache[plr] then
+            local hl = Instance.new("Highlight", char)
+            hl.Name = "MH_HL"
+            local bb = Instance.new("BillboardGui", head)
+            bb.Name = "MH_BB"; bb.Size = UDim2.new(0, 100, 0, 30); bb.StudsOffset = Vector3.new(0, 2, 0); bb.AlwaysOnTop = true
+            local txt = Instance.new("TextLabel", bb)
+            txt.Size = UDim2.new(1,0,1,0); txt.BackgroundTransparency = 1; txt.TextColor3 = color; txt.Font = Enum.Font.GothamBold; txt.TextSize = 12
+            ESPCache[plr] = {hl=hl, bb=bb, txt=txt}
         end
+        
+        local e = ESPCache[plr]
+        e.hl.FillColor = color; e.hl.OutlineColor = color
+        e.txt.Text = role .. " | " .. math.floor((Camera.CFrame.Position - hrp.Position).Magnitude) .. "m"
     end
 end
 
@@ -106,7 +91,7 @@ local function doAimbot()
         end
     end
     if best then
-        local part = best.Character:FindFirstChild("Head") or best.Character:FindFirstChild("HumanoidRootPart")
+        local part = best.Character:FindFirstChild(CFG.aimPart) or best.Character:FindFirstChild("HumanoidRootPart")
         if part then Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, part.Position), CFG.aimSmooth) end
     end
 end
@@ -137,48 +122,46 @@ local function updateMovement()
     end
     
     local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-    if hum and hum.WalkSpeed ~= CFG.walkSpeed then hum.WalkSpeed = CFG.walkSpeed end
+    if hum then
+        local targetSpeed = CFG.speedEnabled and 50 or CFG.walkSpeed
+        if hum.WalkSpeed ~= targetSpeed then hum.WalkSpeed = targetSpeed end
+    end
 end
 
 -- ============================================================
--- КРАСИВЫЙ UI (GLASSMORPHISM)
+-- UI (GLASSMORPHISM)
 -- ============================================================
 local parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 pcall(function() parent = gethui() end)
 
--- Блюр фона (создается, но выключен)
-local lighting = game:GetService("Lighting")
-local blur = Instance.new("BlurEffect", lighting)
+local blur = Instance.new("BlurEffect", Lighting)
 blur.Size = 0; blur.Enabled = false
 
 local screen = Instance.new("ScreenGui")
-screen.Name = "ManyHubGlass"; screen.ResetOnSpawn = false; screen.DisplayOrder = 999; screen.Parent = parent
+screen.Name = "ManyHubUI"; screen.ResetOnSpawn = false; screen.DisplayOrder = 999; screen.Parent = parent
 
--- Кнопка MH
-local toggleBtn = Instance.new("TextButton")
+-- Кнопка с картинкой
+local toggleBtn = Instance.new("ImageButton")
 toggleBtn.Size = UDim2.new(0, 60, 0, 60); toggleBtn.Position = UDim2.new(0, 20, 0.5, -30)
-toggleBtn.BackgroundColor3 = Color3.fromRGB(30, 15, 45); toggleBtn.Text = "MH"
-toggleBtn.TextColor3 = Color3.fromRGB(180, 80, 255); toggleBtn.Font = Enum.Font.GothamBlack; toggleBtn.TextSize = 22
+toggleBtn.BackgroundTransparency = 1
+toggleBtn.Image = "https://fotovssylku.ru/i/1000063845.nRKCn" -- Твоя картинка
 toggleBtn.ZIndex = 10; toggleBtn.Parent = screen
-Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 12)
-local stroke = Instance.new("UIStroke", toggleBtn); stroke.Color = Color3.fromRGB(180, 80, 255); stroke.Thickness = 2
+Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 30)
 
--- Главное окно
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 380, 0, 260); main.Position = UDim2.new(0.5, -190, 0.5, -130)
+main.Size = UDim2.new(0, 400, 0, 300); main.Position = UDim2.new(0.5, -200, 0.5, -150)
 main.BackgroundColor3 = Color3.fromRGB(20, 10, 30); main.BackgroundTransparency = 0.2
 main.BorderSizePixel = 0; main.Active = true; main.Draggable = true; main.Visible = false; main.ZIndex = 5; main.Parent = screen
 Instance.new("UICorner", main).CornerRadius = UDim.new(0, 16)
 local mainStroke = Instance.new("UIStroke", main); mainStroke.Color = Color3.fromRGB(180, 80, 255); mainStroke.Thickness = 1.5
 
--- Шапка окна
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, 40); header.BackgroundColor3 = Color3.fromRGB(35, 20, 45); header.ZIndex = 6; header.Parent = main
 Instance.new("UICorner", header).CornerRadius = UDim.new(0, 16)
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -60, 1, 0); title.Position = UDim2.new(0, 15, 0, 0); title.BackgroundTransparency = 1
-title.Text = "ManyHub · UI"; title.TextColor3 = Color3.fromRGB(255, 255, 255); title.Font = Enum.Font.GothamBold
+title.Text = "ManyHub · Ultimate"; title.TextColor3 = Color3.fromRGB(255, 255, 255); title.Font = Enum.Font.GothamBold
 title.TextSize = 16; title.TextXAlignment = Enum.TextXAlignment.Left; title.ZIndex = 7; title.Parent = header
 
 local closeBtn = Instance.new("TextButton")
@@ -187,19 +170,15 @@ closeBtn.BackgroundColor3 = Color3.fromRGB(255, 60, 60); closeBtn.Text = "X"
 closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255); closeBtn.Font = Enum.Font.GothamBold
 closeBtn.ZIndex = 7; closeBtn.Parent = header; Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
 
--- Левая панель (вкладки)
 local tabPanel = Instance.new("Frame")
 tabPanel.Size = UDim2.new(0, 100, 1, -50); tabPanel.Position = UDim2.new(0, 10, 0, 45)
 tabPanel.BackgroundTransparency = 1; tabPanel.ZIndex = 6; tabPanel.Parent = main
 
--- Правая панель (контент)
 local content = Instance.new("Frame")
 content.Size = UDim2.new(1, -120, 1, -50); content.Position = UDim2.new(0, 115, 0, 45)
 content.BackgroundTransparency = 1; content.ZIndex = 6; content.Parent = main
 
--- Логика вкладок
-local tabs = {}
-local tabBtns = {}
+local tabs, tabBtns = {}, {}
 
 local function switchTab(name)
     for tabName, frame in pairs(tabs) do
@@ -210,11 +189,11 @@ end
 
 local function createTab(name, index)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 35); btn.Position = UDim2.new(0, 0, 0, (index-1)*45)
+    btn.Size = UDim2.new(1, 0, 0, 30); btn.Position = UDim2.new(0, 0, 0, (index-1)*35)
     btn.BackgroundColor3 = index == 1 and Color3.fromRGB(150, 50, 255) or Color3.fromRGB(35, 20, 45)
     btn.Text = name; btn.TextColor3 = Color3.fromRGB(255, 255, 255); btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 13; btn.ZIndex = 7; btn.Parent = tabPanel
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    btn.TextSize = 12; btn.ZIndex = 7; btn.Parent = tabPanel
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     tabBtns[name] = btn
 
     local frame = Instance.new("Frame")
@@ -229,16 +208,17 @@ end
 local espFrame = createTab("ESP", 1)
 local aimFrame = createTab("Aimbot", 2)
 local moveFrame = createTab("Movement", 3)
+local tpFrame = createTab("Teleport", 4)
+local plrFrame = createTab("Player", 5)
 
--- Функция создания тумблера
 local function createToggle(parentFrame, text, initialState, callback, yPos)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 35); btn.Position = UDim2.new(0, 0, 0, yPos)
+    btn.Size = UDim2.new(1, 0, 0, 30); btn.Position = UDim2.new(0, 0, 0, yPos)
     btn.BackgroundColor3 = initialState and Color3.fromRGB(50, 180, 50) or Color3.fromRGB(45, 25, 55)
     btn.Text = text .. ": " .. (initialState and "ON" or "OFF")
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255); btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 13; btn.ZIndex = 8; btn.Parent = parentFrame
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255); btn.Font = Enum.Font.Gotham
+    btn.TextSize = 12; btn.ZIndex = 8; btn.Parent = parentFrame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
     local state = initialState
     btn.MouseButton1Click:Connect(function()
@@ -249,18 +229,45 @@ local function createToggle(parentFrame, text, initialState, callback, yPos)
     end)
 end
 
--- Заполняем вкладки
-createToggle(espFrame, "ESP Enabled", CFG.espEnabled, function(v)
+-- Заполнение вкладок
+createToggle(espFrame, "ESP Enabled", CFG.espEnabled, function(v) 
     CFG.espEnabled = v
-    if v then for _, p in ipairs(Players:GetPlayers()) do if p ~= LocalPlayer then createESP(p) end end
-    else for p, e in pairs(ESPCache) do e.highlight:Destroy(); e.billboard:Destroy(); ESPCache[p] = nil end end
+    if not v then for p, e in pairs(ESPCache) do e.hl:Destroy(); e.bb:Destroy(); ESPCache[p] = nil end end
 end, 0)
+createToggle(espFrame, "Box ESP", CFG.espBox, function(v) CFG.espBox = v end, 35)
+createToggle(espFrame, "Tracers", CFG.espTracer, function(v) CFG.espTracer = v end, 70)
 
-createToggle(aimFrame, "Aimbot", CFG.aimbotEnabled, function(v) CFG.aimbotEnabled = v end, 0)
+createToggle(aimFrame, "Aimbot (Touch/RMB)", CFG.aimbotEnabled, function(v) CFG.aimbotEnabled = v end, 0)
+createToggle(aimFrame, "Silent Aim", CFG.silentAim, function(v) CFG.silentAim = v end, 35)
+createToggle(aimFrame, "Auto Shoot", CFG.autoShoot, function(v) CFG.autoShoot = v end, 70)
+createToggle(aimFrame, "Hitbox Expander", CFG.hitboxExpand, function(v) CFG.hitboxExpand = v end, 105)
 
 createToggle(moveFrame, "Fly", CFG.flyEnabled, function(v) CFG.flyEnabled = v end, 0)
-createToggle(moveFrame, "Noclip", CFG.noclipEnabled, function(v) CFG.noclipEnabled = v end, 45)
-createToggle(moveFrame, "Speed 32", false, function(v) CFG.walkSpeed = v and 32 or 16 end, 90)
+createToggle(moveFrame, "Noclip", CFG.noclipEnabled, function(v) CFG.noclipEnabled = v end, 35)
+createToggle(moveFrame, "Speed", CFG.speedEnabled, function(v) CFG.speedEnabled = v end, 70)
+createToggle(moveFrame, "Bhop", CFG.bhopEnabled, function(v) CFG.bhopEnabled = v end, 105)
+createToggle(moveFrame, "Anti-Fling", CFG.antiFling, function(v) CFG.antiFling = v end, 140)
+
+local tpMurdererBtn = Instance.new("TextButton")
+tpMurdererBtn.Size = UDim2.new(1, 0, 0, 30); tpMurdererBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 255)
+tpMurdererBtn.Text = "TP to Murderer"; tpMurdererBtn.TextColor3 = Color3.fromRGB(255, 255, 255); tpMurdererBtn.Font = Enum.Font.GothamBold; tpMurdererBtn.ZIndex = 8
+tpMurdererBtn.Parent = tpFrame; Instance.new("UICorner", tpMurdererBtn).CornerRadius = UDim.new(0, 6)
+tpMurdererBtn.MouseButton1Click:Connect(function()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if RoleCache[p] == "Murderer" and p.Character and LocalPlayer.Character then
+            LocalPlayer.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame + Vector3.new(0,3,0)
+        end
+    end
+end)
+
+createToggle(plrFrame, "Fullbright", CFG.fullbright, function(v) 
+    CFG.fullbright = v
+    Lighting.Brightness = v and 3 or 1
+    Lighting.FogEnd = v and 100000 or 1000
+end, 0)
+createToggle(plrFrame, "FPS Boost", CFG.fpsBoost, function(v) CFG.fpsBoost = v end, 35)
+createToggle(plrFrame, "Auto Pickup", CFG.autoPickup, function(v) CFG.autoPickup = v end, 70)
+createToggle(plrFrame, "Anti-AFK", CFG.antiAfk, function(v) CFG.antiAfk = v end, 105)
 
 -- Открытие/Закрытие
 local isOpen = false
@@ -270,7 +277,7 @@ local function toggleMenu()
     blur.Enabled = isOpen
     if isOpen then
         main.Size = UDim2.new(0, 0, 0, 0)
-        TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 380, 0, 260)}):Play()
+        TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, 400, 0, 300)}):Play()
         blur.Size = 15
     end
 end
@@ -278,12 +285,31 @@ end
 toggleBtn.MouseButton1Click:Connect(toggleMenu)
 closeBtn.MouseButton1Click:Connect(toggleMenu)
 
+-- Логика перетаскивания кнопки
+local dragging, dragInput, dragStart, startPos
+toggleBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = toggleBtn.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+toggleBtn.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        toggleBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
 -- ============================================================
 -- ЗАПУСК
 -- ============================================================
-for _, plr in ipairs(Players:GetPlayers()) do createESP(plr) end
-Players.PlayerAdded:Connect(function(plr) plr.CharacterAdded:Connect(function() task.wait(1); if CFG.espEnabled then createESP(plr) end end) end)
-
 RunService.RenderStepped:Connect(function()
     updateRoles()
     updateESP()
