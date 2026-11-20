@@ -1,5 +1,5 @@
 -- ManyHub_MM2.lua · Lua · Custom UI · MM2 Client-Side
--- Финальная сборка: Custom UI + Key System + Admin Panel + Modules.
+-- Финальная сборка (Mobile Fix): Custom UI + Key System + Admin Panel + Modules.
 
 local MASTER_KEY = "AdminManyHub-HDFG6"
 local SERVER = "https://manyhub-production.up.railway.app" -- Твой сервер Railway
@@ -216,27 +216,37 @@ local function updateMovement()
 end
 
 -- ============================================================
--- GUI
+-- GUI (С ИСПРАВЛЕННЫМ PARENT)
 -- ============================================================
 local function initCustomGUI()
-    local parent; pcall(function() parent = gethui() end)
-    if not parent then pcall(function() parent = game:GetService("CoreGui") end) end
-    if not parent then parent = LocalPlayer:WaitForChild("PlayerGui") end
+    -- Надежно ищем родителя
+    local parent = LocalPlayer:WaitForChild("PlayerGui")
+    pcall(function()
+        if gethui then parent = gethui() end
+    end)
 
+    -- Создаем единый ScreenGui для всего
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ManyHub_UI"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = parent
+
+    -- Кнопка MH
     local toggleBtn = Instance.new("TextButton")
     toggleBtn.Size = UDim2.new(0, 70, 0, 40); toggleBtn.Position = UDim2.new(1, -90, 0.5, -20)
     toggleBtn.BackgroundColor3 = Color3.fromRGB(35, 20, 45); toggleBtn.Text = "MH"
     toggleBtn.TextColor3 = Color3.fromRGB(180, 80, 255); toggleBtn.Font = Enum.Font.GothamBlack; toggleBtn.TextSize = 18
-    toggleBtn.Parent = parent
+    toggleBtn.Parent = screenGui
     Instance.new("UICorner", toggleBtn).CornerRadius = UDim.new(0, 8)
     local s1 = Instance.new("UIStroke", toggleBtn); s1.Color = Color3.fromRGB(180, 80, 255); s1.Thickness = 2
 
+    -- Меню
     local menu = Instance.new("Frame")
     menu.Size = UDim2.new(0, 350, 0, 450)
     menu.Position = UDim2.new(0.5, -175, 0.5, -225)
     menu.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
     menu.BorderSizePixel = 0; menu.Active = true; menu.Draggable = true; menu.Visible = false
-    menu.Parent = parent
+    menu.Parent = screenGui
     Instance.new("UICorner", menu).CornerRadius = UDim.new(0, 10)
     local s2 = Instance.new("UIStroke", menu); s2.Color = Color3.fromRGB(180, 80, 255); s2.Thickness = 2
 
@@ -364,7 +374,7 @@ local function initCustomGUI()
                         resultLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
                     end
                 else
-                    resultLbl.Text = "Ошибка сети (сервер лежит?)"
+                    resultLbl.Text = "Ошибка сети"
                     resultLbl.TextColor3 = Color3.fromRGB(255, 80, 80)
                 end
                 genBtn.Text = "СОЗДАТЬ КЛЮЧ НА СЕРВЕРЕ"
@@ -390,9 +400,8 @@ end
 -- KEY SYSTEM UI
 -- ============================================================
 local function showKeyUI(onSuccess)
-    local parent; pcall(function() parent = gethui() end)
-    if not parent then pcall(function() parent = game:GetService("CoreGui") end) end
-    if not parent then parent = LocalPlayer:WaitForChild("PlayerGui") end
+    local parent = LocalPlayer:WaitForChild("PlayerGui")
+    pcall(function() if gethui then parent = gethui() end end)
 
     local screen = Instance.new("ScreenGui")
     screen.Name = "ManyHubKeyUI"; screen.ResetOnSpawn = false; screen.Parent = parent
@@ -440,7 +449,7 @@ local function showKeyUI(onSuccess)
         status.Text = "Проверка..."
         task.spawn(function()
             local req = syn and syn.request or request or http_request
-            if not req then status.Text = "Ошибка сети (нет HTTP)"; return end
+            if not req then status.Text = "Нет HTTP"; return end
             
             local ok, res = pcall(function()
                 return req({
@@ -457,11 +466,12 @@ local function showKeyUI(onSuccess)
                     status.TextColor3 = Color3.fromRGB(0, 255, 100)
                     task.wait(0.5); screen:Destroy(); onSuccess()
                 else
-                    status.Text = "Ошибка: " .. (data.error or "invalid")
+                    status.Text = "Неверный ключ"
                     status.TextColor3 = Color3.fromRGB(255, 80, 80)
                 end
             else
-                status.Text = "Ошибка сети (сервер лежит?)"
+                -- Если сервер вернул 404 или 403, скрипт тоже считает это неверным ключом
+                status.Text = "Неверный ключ или сервер лежит"
                 status.TextColor3 = Color3.fromRGB(255, 80, 80)
             end
         end)
